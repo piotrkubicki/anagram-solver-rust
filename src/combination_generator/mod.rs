@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 #[derive(Clone)]
 pub struct Config {
     min_word_len: u32,
@@ -73,19 +75,18 @@ impl Iterator for Generator {
 }
 
 pub struct CombinationGenerator {
-    generators: Vec<Generator>,
-    state: usize,
+    generators: VecDeque<Generator>,
     config: Config,
 }
 
 impl CombinationGenerator {
     pub fn new(config: Config) -> Self {
-        let mut generators = vec![];
+        let mut generators = VecDeque::new();
         for max_words in 1..config.max_words + 1 {
             if max_words * config.max_word_len >= config.target_len {
                 let mut config = config.clone();
                 config.max_words = max_words;
-                generators.push(
+                generators.push_back(
                     Generator::new(config)
                 );
             }
@@ -93,7 +94,6 @@ impl CombinationGenerator {
 
         CombinationGenerator {
             generators: generators,
-            state: 0,
             config: config,
         }
     }
@@ -103,14 +103,15 @@ impl Iterator for CombinationGenerator {
     type Item = Vec<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.generators.get_mut(self.state) {
-            Some(generator) => {
-                if self.state >= ((self.config.max_words - 2) as usize) {
-                    self.state = 0;
-                } else {
-                    self.state += 1;
-                };
-                return generator.next();
+        match self.generators.pop_front() {
+            Some(mut generator) => {
+                match generator.next() {
+                    Some(combination) => {
+                        self.generators.push_back(generator);
+                        return Some(combination);
+                    },
+                _ => return None,
+                }
             },
             _ => None,
         }
@@ -163,10 +164,7 @@ mod tests {
         let mut combination_generator = CombinationGenerator::new(config);
 
         assert_eq!(combination_generator.next().unwrap().len(), 2);
-        assert_eq!(combination_generator.state, 1);
         assert_eq!(combination_generator.next().unwrap().len(), 3);
-        assert_eq!(combination_generator.state, 0);
         assert_eq!(combination_generator.next().unwrap().len(), 2);
-        assert_eq!(combination_generator.state, 1);
     }
 }
