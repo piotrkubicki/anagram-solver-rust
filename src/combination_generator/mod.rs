@@ -1,10 +1,10 @@
+#[derive(Clone)]
 pub struct Config {
     min_word_len: u32,
     max_word_len: u32,
     target_len: u32,
     max_words: u32,
 }
-
 
 impl Config {
     pub fn new(min_word_len: u32, max_word_len: u32, target_len: u32, max_words: u32) -> Self {
@@ -24,7 +24,8 @@ pub struct Generator {
 }
 
 impl Generator {
-    pub fn new(config: Config, state: Vec<u32>) -> Self {
+    pub fn new(config: Config) -> Self {
+        let state = vec![config.min_word_len; config.max_words as usize];
         Generator {
             config,
             state
@@ -46,13 +47,14 @@ impl Generator {
 
     fn increment<'a>(&mut self) -> Result<(), String> {
         for value in self.state.iter_mut() {
-            if value < &mut self.config.max_word_len {
+            if *value < self.config.max_word_len {
                 *value += 1;
                 return Ok(());
             } else {
                 *value = 1;
             }
         }
+        self.state = vec![];
         Err(String::from("Max combination reached!"))
     }
 }
@@ -70,6 +72,51 @@ impl Iterator for Generator {
     }
 }
 
+pub struct CombinationGenerator {
+    generators: Vec<Generator>,
+    state: usize,
+    config: Config,
+}
+
+impl CombinationGenerator {
+    pub fn new(config: Config) -> Self {
+        let mut generators = vec![];
+        for max_words in 1..config.max_words + 1 {
+            if max_words * config.max_word_len >= config.target_len {
+                let mut config = config.clone();
+                config.max_words = max_words;
+                generators.push(
+                    Generator::new(config)
+                );
+            }
+        }
+
+        CombinationGenerator {
+            generators: generators,
+            state: 0,
+            config: config,
+        }
+    }
+}
+
+impl Iterator for CombinationGenerator {
+    type Item = Vec<u32>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.generators.get_mut(self.state) {
+            Some(generator) => {
+                if self.state >= ((self.config.max_words - 2) as usize) {
+                    self.state = 0;
+                } else {
+                    self.state += 1;
+                };
+                return generator.next();
+            },
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,7 +128,8 @@ mod tests {
     #[test_case(vec![4, 6, 6], vec![5, 6, 6])]
     fn increment_correct_combination_element(state: Vec<u32>, expected: Vec<u32>) {
         let config = Config::new(2, 6, 10, 3);
-        let mut generator = Generator::new(config, state);
+        let mut generator = Generator::new(config);
+        generator.state = state;
 
         let _ = generator.increment();
 
@@ -94,17 +142,31 @@ mod tests {
     #[test_case(vec![1, 4, 2], false)]
     fn is_valid_returns_expected(state: Vec<u32>, expected: bool) {
         let config = Config::new(2, 6, 10, 3);
-        let generator = Generator::new(config, state);
+        let mut generator = Generator::new(config);
+        generator.state = state;
 
         assert_eq!(generator.is_valid(), expected);
     }
 
     #[test]
-    fn get_next_combination() {
+    fn get_next_combination_returns_valid_combination_lengths() {
         let config = Config::new(3, 10, 21, 3);
-        let mut generator = Generator::new(config, vec![1, 1, 1]);
+        let mut generator = Generator::new(config);
 
         assert_eq!(generator.next().unwrap(), vec![10, 8, 3]);
         assert_eq!(generator.next().unwrap(), vec![9, 9, 3]);
+    }
+
+    #[test]
+    fn test_combination_generator_calls_generators_in_turns() {
+        let config = Config::new(2, 6, 8, 3);
+        let mut combination_generator = CombinationGenerator::new(config);
+
+        assert_eq!(combination_generator.next().unwrap().len(), 2);
+        assert_eq!(combination_generator.state, 1);
+        assert_eq!(combination_generator.next().unwrap().len(), 3);
+        assert_eq!(combination_generator.state, 0);
+        assert_eq!(combination_generator.next().unwrap().len(), 2);
+        assert_eq!(combination_generator.state, 1);
     }
 }
