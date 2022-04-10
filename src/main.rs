@@ -3,10 +3,10 @@ use combination_generator::{Config, CombinationGenerator};
 mod combination_generator;
 
 fn main() {
-    let config = Config::new(3, 10, 18, 3);
+    let config = Config::new(3, 10, 18, 4);
     let mut combination_length_gen = CombinationGenerator::new(config);
 
-    for _ in 1..100 {
-        println!("{:?}", combination_length_gen.next());
+    while let Some(combination) = combination_length_gen.next() {
+        println!("{:?}", combination);
     }
 }

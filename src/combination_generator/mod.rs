@@ -76,7 +76,7 @@ impl Iterator for Generator {
 
 pub struct CombinationGenerator {
     generators: VecDeque<Generator>,
-    config: Config,
+    seen_combinations: Vec<Vec<u32>>,
 }
 
 impl CombinationGenerator {
@@ -93,8 +93,8 @@ impl CombinationGenerator {
         }
 
         CombinationGenerator {
-            generators: generators,
-            config: config,
+            generators,
+            seen_combinations: vec![],
         }
     }
 }
@@ -103,18 +103,18 @@ impl Iterator for CombinationGenerator {
     type Item = Vec<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.generators.pop_front() {
-            Some(mut generator) => {
-                match generator.next() {
-                    Some(combination) => {
-                        self.generators.push_back(generator);
-                        return Some(combination);
-                    },
-                _ => return None,
+        while let Some(mut generator) = self.generators.pop_front() {
+            while let Some(mut combination) = generator.next() {
+                combination.sort();
+                if !self.seen_combinations.contains(&combination) {
+                    self.seen_combinations.push(combination.clone());
+                    self.generators.push_back(generator);
+                    return Some(combination);
                 }
-            },
-            _ => None,
-        }
+            };
+        };
+
+        None
     }
 }
 
@@ -159,12 +159,25 @@ mod tests {
     }
 
     #[test]
-    fn test_combination_generator_calls_generators_in_turns() {
+    fn combination_generator_calls_generators_in_turns() {
         let config = Config::new(2, 6, 8, 3);
         let mut combination_generator = CombinationGenerator::new(config);
 
         assert_eq!(combination_generator.next().unwrap().len(), 2);
         assert_eq!(combination_generator.next().unwrap().len(), 3);
         assert_eq!(combination_generator.next().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn combination_generator_returns_expected_number_of_combinations() {
+        let config = Config::new(3, 10, 18, 4);
+        let mut combination_length_gen = CombinationGenerator::new(config);
+        let mut combinations = vec![];
+
+        while let Some(combination) = combination_length_gen.next() {
+            combinations.push(combination);
+        }
+
+        assert_eq!(combinations.len(), 21);
     }
 }
