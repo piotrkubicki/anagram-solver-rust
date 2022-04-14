@@ -1,40 +1,24 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Error};
 use std::fs::File;
+
+use crate::Config;
 
 
 pub struct Dictionary {
+    config: Config,
     words: HashMap<usize, Vec<String>>
 }
 
 impl Dictionary {
-    pub fn new(file_path: &str) -> Self {
-        if let Ok(file) = File::open(file_path) {
-            let reader = BufReader::new(file);
-            let mut dictionary: HashMap<usize, Vec<String>> = HashMap::new();
-
-            for line in reader.lines() {
-                if let Ok(word) = line {
-                    let word_len = word.len();
-                    if dictionary.contains_key(&word_len) {
-                        if let Some(list) = dictionary.get_mut(&word_len) {
-                            list.push(word);
-                        }
-                    }
-                    else {
-                        dictionary.insert(word_len, vec![word]);
-                    }
-                }
-            }
-
-            Dictionary {
-                words: dictionary
-            }
-        } else {
-            Dictionary {
-                words: HashMap::new()
-            }
-        }
+    pub fn new(file_path: &str, config: Config) -> Result<Self, Error> {
+        let file = File::open(file_path).unwrap();
+        let mut reader = BufReader::new(file);
+        let dictionary = Dictionary::map(&mut reader);
+        Ok(Dictionary {
+            config: config,
+            words: dictionary,
+        })
     }
 
     pub fn get(self, key: &usize) -> Option<Vec<String>> {
@@ -42,5 +26,24 @@ impl Dictionary {
             Some(list) => Some(list.clone()),
             _ => None
         }
+    }
+
+    fn map<T: BufRead>(reader: &mut T) -> HashMap<usize, Vec<String>> {
+        let mut dictionary: HashMap<usize, Vec<String>> = HashMap::new();
+
+        for line in reader.lines() {
+            if let Ok(word) = line {
+                let word_len = word.len();
+                if dictionary.contains_key(&word_len) {
+                    if let Some(list) = dictionary.get_mut(&word_len) {
+                        list.push(word);
+                    }
+                }
+                else {
+                    dictionary.insert(word_len, vec![word]);
+                }
+            }
+        }
+        dictionary
     }
 }

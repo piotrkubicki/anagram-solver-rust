@@ -1,24 +1,6 @@
 use std::collections::VecDeque;
+use crate::Config;
 
-#[derive(Clone)]
-pub struct Config {
-    min_word_len: u32,
-    max_word_len: u32,
-    target_len: u32,
-    max_words: u32,
-}
-
-impl Config {
-    pub fn new(min_word_len: u32, max_word_len: u32, target_len: u32, max_words: u32) -> Self {
-        Config {
-            min_word_len,
-            max_word_len,
-            target_len,
-            max_words
-        }
-    }
-
-}
 
 pub struct Generator {
     config: Config,
