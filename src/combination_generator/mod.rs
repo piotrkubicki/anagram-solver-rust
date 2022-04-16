@@ -4,7 +4,7 @@ use crate::Config;
 
 pub struct Generator {
     config: Config,
-    state: Vec<u32>
+    state: Vec<usize>
 }
 
 impl Generator {
@@ -17,7 +17,7 @@ impl Generator {
     }
 
     fn is_valid(&self) -> bool {
-        if self.state.iter().sum::<u32>() != self.config.target_len {
+        if self.state.iter().sum::<usize>() != self.config.target_len {
             return false;
         }
 
@@ -44,11 +44,11 @@ impl Generator {
 }
 
 impl Iterator for Generator {
-    type Item = Vec<u32>;
+    type Item = Vec<usize>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self.increment() == Ok(()) {
-            if self.state.iter().sum::<u32>() == self.config.target_len && self.is_valid() {
+            if self.state.iter().sum::<usize>() == self.config.target_len && self.is_valid() {
                 return Some(self.state.clone());
             }
         }
@@ -58,7 +58,7 @@ impl Iterator for Generator {
 
 pub struct CombinationGenerator {
     generators: VecDeque<Generator>,
-    seen_combinations: Vec<Vec<u32>>,
+    seen_combinations: Vec<Vec<usize>>,
 }
 
 impl CombinationGenerator {
@@ -82,7 +82,7 @@ impl CombinationGenerator {
 }
 
 impl Iterator for CombinationGenerator {
-    type Item = Vec<u32>;
+    type Item = Vec<usize>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(mut generator) = self.generators.pop_front() {
@@ -109,7 +109,7 @@ mod tests {
     #[test_case(vec![6, 2, 2], vec![1, 3, 2])]
     #[test_case(vec![6, 6, 2], vec![1, 1, 3])]
     #[test_case(vec![4, 6, 6], vec![5, 6, 6])]
-    fn increment_correct_combination_element(state: Vec<u32>, expected: Vec<u32>) {
+    fn increment_correct_combination_element(state: Vec<usize>, expected: Vec<usize>) {
         let config = Config::new(2, 6, 10, 3);
         let mut generator = Generator::new(config);
         generator.state = state;
@@ -123,7 +123,7 @@ mod tests {
     #[test_case(vec![5, 3, 2], true)]
     #[test_case(vec![4, 4, 2], true)]
     #[test_case(vec![1, 4, 2], false)]
-    fn is_valid_returns_expected(state: Vec<u32>, expected: bool) {
+    fn is_valid_returns_expected(state: Vec<usize>, expected: bool) {
         let config = Config::new(2, 6, 10, 3);
         let mut generator = Generator::new(config);
         generator.state = state;

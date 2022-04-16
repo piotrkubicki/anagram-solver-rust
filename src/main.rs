@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-use std::io::BufRead;
-use std::{env, io::BufReader};
+use std::env;
 use std::io;
-use std::fs::File;
 
 use combination_generator::{CombinationGenerator};
 use dictionary::{Dictionary};
@@ -13,14 +10,14 @@ mod dictionary;
 
 #[derive(Clone)]
 pub struct Config {
-    min_word_len: u32,
-    max_word_len: u32,
-    target_len: u32,
-    max_words: u32,
+    min_word_len: usize,
+    max_word_len: usize,
+    target_len: usize,
+    max_words: usize,
 }
 
 impl Config {
-    pub fn new(min_word_len: u32, max_word_len: u32, target_len: u32, max_words: u32) -> Self {
+    pub fn new(min_word_len: usize, max_word_len: usize, target_len: usize, max_words: usize) -> Self {
         Config {
             min_word_len,
             max_word_len,
