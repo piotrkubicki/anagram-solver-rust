@@ -5,18 +5,18 @@ use std::fs::File;
 use crate::Config;
 
 
-pub struct Dictionary {
-    config: Config,
+pub struct Dictionary<'a> {
+    config: &'a Config,
     words: HashMap<usize, HashSet<String>>
 }
 
-impl Dictionary {
-    pub fn new(file_path: &str, config: Config) -> Result<Self, Error> {
+impl <'a>Dictionary<'a> {
+    pub fn new(file_path: &str, config: &'a Config) -> Result<Self, Error> {
         let file = File::open(file_path).unwrap();
         let mut reader = BufReader::new(file);
         let dictionary = Dictionary::map(&mut reader, &config);
         Ok(Dictionary {
-            config: config,
+            config,
             words: dictionary,
         })
     }

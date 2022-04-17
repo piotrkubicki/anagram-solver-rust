@@ -29,9 +29,9 @@ impl Config {
 }
 
 fn main() -> io::Result<()> {
-    let config = Config::new(3, 10, 18, 4);
+    let config:  Config = Config::new(3, 10, 18, 4);
     let args: Vec<String> = env::args().collect();
-    if let Ok(dictionary) = Dictionary::new(&args[1], config) {
+    if let Ok(dictionary) = Dictionary::new(&args[1], &config) {
         println!("{:?}", dictionary.get(&3));
     }
 
