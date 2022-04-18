@@ -4,6 +4,7 @@ use std::io;
 use combination_generator::{CombinationGenerator};
 use dictionary::{Dictionary};
 
+mod combination_finder;
 mod combination_generator;
 mod dictionary;
 
