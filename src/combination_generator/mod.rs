@@ -4,7 +4,6 @@ use crate::Config;
 
 pub struct Generator<'a> {
     config: &'a Config,
-    max_words: usize,
     state: Vec<usize>
 }
 
@@ -13,7 +12,6 @@ impl<'a> Generator<'a> {
         let state = vec![config.min_word_len; max_words];
         Generator {
             config,
-            max_words,
             state
         }
     }
