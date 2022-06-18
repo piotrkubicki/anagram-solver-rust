@@ -1,6 +1,6 @@
 use std::sync::mpsc::{Receiver, Sender};
 
-use crate::{Config, dictionary};
+use crate::{Config};
 
 #[derive(Debug, PartialEq, Eq)]
 enum State {
