@@ -109,6 +109,21 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
+    #[test_case(3, 3, 27)]
+    #[test_case(2, 3, 8)]
+    #[test_case(1, 8, 1)]
+    #[test_case(8, 1, 8)]
+    fn test_dictionary_iterator_creates_expected_number_of_combinations(rows: usize, columns: usize, expected_combinations: isize) {
+        let mut counter = 0;
+        let iterator = DictionaryIterator::new(&vec![vec!["a".to_string(); rows]; columns]);
+
+        for _ in iterator {
+            counter += 1;
+        }
+
+        assert_eq!(counter, expected_combinations);
+    }
+
     #[test]
     fn test_dictionary_iterator() {
         let dictionary = vec![
