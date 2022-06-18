@@ -78,21 +78,8 @@ impl<'a> CombinationFinder<'a> {
 
     pub fn run(&mut self) {
         self.state = State::Starting;
-        let mut counter = DictionaryIterator::new(&self.dictionary);
-        self.state = State::Running;
-
-        while let Some(c) = counter.next() {
-            let mut words: Vec<String> = vec![];
-            for (i, item) in c.iter().enumerate() {
-                if let Some(word_list) = self.dictionary.get(i) {
-                    if let Some(word) = word_list.get(*item as usize) {
-                        words.push(word.to_string());
-                    }
-                }
-            }
-            self.tx.send(words);
-        }
-        self.state = State::Stopped;
+        self.find_combinations(SimpleFinder{});
+        println!("CombinationFinder finished!");
     }
 
     fn is_valid(combination: &Vec<String>, comparator: &Vec<char>) -> bool {
@@ -100,11 +87,46 @@ impl<'a> CombinationFinder<'a> {
         combination.sort();
         comparator.eq(&combination)
     }
+
+    fn find_combinations<T: Finder>(&mut self, finder: T) {
+        let mut counter = DictionaryIterator::new(&self.dictionary);
+        self.state = State::Running;
+        while let Some(c) = counter.next() {
+            if let Ok(msg) = self.rx.try_recv() {
+                println!("Stop command received! Stopping...");
+                break;
+            }
+            let words = finder.find(c, &self.dictionary);
+            self.tx.send(words);
+        }
+        self.state = State::Stopped;
+    }
+}
+
+trait Finder {
+    fn find(&self, combination: Vec<isize>, dictionary: &Vec<Vec<String>>) -> Vec<String>;
+}
+
+struct SimpleFinder {}
+
+impl Finder for SimpleFinder {
+    fn find(&self, combination: Vec<isize>, dictionary: &Vec<Vec<String>>) -> Vec<String> {
+        let mut words: Vec<String> = vec![];
+        for (i, item) in combination.iter().enumerate() {
+            if let Some(word_list) = dictionary.get(i) {
+                if let Some(word) = word_list.get(*item as usize) {
+                    words.push(word.to_string());
+                }
+            }
+        }
+        words
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc;
+    use core::time;
+    use std::{sync::mpsc, thread};
 
     use super::*;
     use test_case::test_case;
@@ -192,5 +214,38 @@ mod tests {
         assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("best"), String::from("zippy")]);
         assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("best"), String::from("quack")]);
         assert_eq!(combination_finder.state, State::Stopped);
+    }
+
+    #[test]
+    fn find_combination_stops_when_stop_signal_received() {
+        struct MockFinder {}
+
+        impl Finder for MockFinder {
+            fn find(&self, combination: Vec<isize>, dictionary: &Vec<Vec<String>>) -> Vec<String> {
+                thread::sleep(time::Duration::from_millis(10));
+                vec!["".to_string()]
+            }
+        }
+
+        let config = Config::new(3, 5, 8, 3);
+        let dictionary = vec![
+            vec![String::from("who"), String::from("bet"), String::from("set")],
+            vec![String::from("test"), String::from("best")],
+            vec![String::from("dizzy"), String::from("junky"), String::from("zippy"), String::from("quack")],
+        ];
+        let (tx_state, rx_state) = mpsc::channel();
+        let (tx_res, rx_res) = mpsc::channel();
+        let mut combination_finder = CombinationFinder::new(&config, dictionary, rx_state, tx_res);
+
+        combination_finder.find_combinations(MockFinder{});
+        tx_state.send(State::Stopped);
+
+        assert_eq!(combination_finder.state, State::Stopped);
+        let mut combinations: Vec<Vec<String>> = vec![];
+        for combination in rx_res.try_recv() {
+            combinations.push(combination);
+        }
+
+        assert!(combinations.len() < 10);
     }
 }
