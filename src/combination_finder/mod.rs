@@ -1,14 +1,7 @@
 use std::sync::mpsc::{Receiver, Sender};
 
-use crate::{Config};
+use crate::{Config, Command, State};
 
-#[derive(Debug, PartialEq, Eq)]
-enum State {
-    Idle,
-    Starting,
-    Running,
-    Stopped
-}
 
 struct DictionaryIterator {
     max_values: Vec<isize>,
@@ -57,16 +50,16 @@ impl Iterator for DictionaryIterator {
     }
 }
 
-struct CombinationFinder<'a> {
+pub struct CombinationFinder<'a> {
     config: &'a Config,
     dictionary: Vec<Vec<String>>,
-    rx: Receiver<State>,
+    rx: Receiver<Command>,
     tx: Sender<Vec<String>>,
     state: State
 }
 
 impl<'a> CombinationFinder<'a> {
-    pub fn new(config: &'a Config, dictionary: Vec<Vec<String>>, rx: Receiver<State>, tx: Sender<Vec<String>>) -> Self {
+    pub fn new(config: &'a Config, dictionary: Vec<Vec<String>>, rx: Receiver<Command>, tx: Sender<Vec<String>>) -> Self {
         CombinationFinder {
             config,
             dictionary,
@@ -128,6 +121,8 @@ mod tests {
     use core::time;
     use std::{sync::mpsc, thread};
 
+    use crate::State;
+
     use super::*;
     use test_case::test_case;
 
@@ -177,7 +172,7 @@ mod tests {
 
     #[test]
     fn run_return_expected_combinations() {
-        let config = Config::new(3, 5, 8, 3);
+        let config = Config::new(3, 5, 8);
         let dictionary = vec![
             vec![String::from("who"), String::from("bet"), String::from("set")],
             vec![String::from("test"), String::from("best")],
@@ -227,7 +222,7 @@ mod tests {
             }
         }
 
-        let config = Config::new(3, 5, 8, 3);
+        let config = Config::new(3, 5, 8);
         let dictionary = vec![
             vec![String::from("who"), String::from("bet"), String::from("set")],
             vec![String::from("test"), String::from("best")],
@@ -238,7 +233,7 @@ mod tests {
         let mut combination_finder = CombinationFinder::new(&config, dictionary, rx_state, tx_res);
 
         combination_finder.find_combinations(MockFinder{});
-        tx_state.send(State::Stopped);
+        tx_state.send(Command::Stop);
 
         assert_eq!(combination_finder.state, State::Stopped);
         let mut combinations: Vec<Vec<String>> = vec![];

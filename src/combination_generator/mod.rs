@@ -62,9 +62,9 @@ pub struct CombinationGenerator<'a > {
 }
 
 impl<'a> CombinationGenerator<'a> {
-    pub fn new(config: &'a Config) -> Self {
+    pub fn new(config: &'a Config, max_words: usize) -> Self {
         let mut generators = VecDeque::new();
-        for max_words in 1..config.max_words + 1 {
+        for max_words in 1..max_words + 1 {
             if max_words * config.max_word_len >= config.target_len {
                 generators.push_back(
                     Generator::new(&config, max_words)
@@ -108,7 +108,7 @@ mod tests {
     #[test_case(vec![6, 6, 2], vec![1, 1, 3])]
     #[test_case(vec![4, 6, 6], vec![5, 6, 6])]
     fn increment_correct_combination_element(state: Vec<usize>, expected: Vec<usize>) {
-        let config = Config::new(2, 6, 10, 3);
+        let config = Config::new(2, 6, 10);
         let mut generator = Generator::new(&config, 3);
         generator.state = state;
 
@@ -122,7 +122,7 @@ mod tests {
     #[test_case(vec![4, 4, 2], true)]
     #[test_case(vec![1, 4, 2], false)]
     fn is_valid_returns_expected(state: Vec<usize>, expected: bool) {
-        let config = Config::new(2, 6, 10, 3);
+        let config = Config::new(2, 6, 10);
         let mut generator = Generator::new(&config, 3);
         generator.state = state;
 
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn get_next_combination_returns_valid_combination_lengths() {
-        let config = Config::new(3, 10, 21, 3);
+        let config = Config::new(3, 10, 21);
         let mut generator = Generator::new(&config, 3);
 
         assert_eq!(generator.next().unwrap(), vec![10, 8, 3]);
@@ -140,8 +140,8 @@ mod tests {
 
     #[test]
     fn combination_generator_calls_generators_in_turns() {
-        let config = Config::new(2, 6, 8, 3);
-        let mut combination_generator = CombinationGenerator::new(&config);
+        let config = Config::new(2, 6, 8);
+        let mut combination_generator = CombinationGenerator::new(&config, 3);
 
         assert_eq!(combination_generator.next().unwrap().len(), 2);
         assert_eq!(combination_generator.next().unwrap().len(), 3);
@@ -150,8 +150,8 @@ mod tests {
 
     #[test]
     fn combination_generator_returns_expected_number_of_combinations() {
-        let config = Config::new(3, 10, 18, 4);
-        let mut combination_length_gen = CombinationGenerator::new(&config);
+        let config = Config::new(3, 10, 18);
+        let mut combination_length_gen = CombinationGenerator::new(&config, 4);
         let mut combinations = vec![];
 
         while let Some(combination) = combination_length_gen.next() {

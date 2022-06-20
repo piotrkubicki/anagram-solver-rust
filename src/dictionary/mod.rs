@@ -21,7 +21,7 @@ impl <'a>Dictionary<'a> {
         })
     }
 
-    pub fn get(self, key: &usize) -> Option<HashSet<String>> {
+    pub fn get(&self, key: &usize) -> Option<HashSet<String>> {
         match self.words.get(key) {
             Some(set) => Some(set.clone()),
             _ => None
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn map_returns_expected_dictionary() {
-        let config = Config::new(4, 8, 14, 4);
+        let config = Config::new(4, 8, 14);
         let wordlist = "this\nis\njust\na\ntest\nlet\nsee\nhow\nit's\nworks\ntest!";
         let expected: HashMap<usize, HashSet<String>> = HashMap::from([
             (4, HashSet::from(["this".to_string(), "just".to_string(), "test".to_string()])),
@@ -88,7 +88,7 @@ mod tests {
     #[test_case("seveeen", true; "max length")]
     #[test_case("cat", true; "min length")]
     fn is_valid_returns_correct_bool(word: &str, expected: bool) {
-        let config = Config::new(3, 7, 20, 3);
+        let config = Config::new(3, 7, 20);
         assert_eq!(Dictionary::is_valid(&config, word), expected);
     }
 
