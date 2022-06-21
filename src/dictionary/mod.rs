@@ -2,21 +2,16 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Error};
 use std::fs::File;
 
-use crate::Config;
-
-
-pub struct Dictionary<'a> {
-    config: &'a Config,
+pub struct Dictionary {
     words: HashMap<usize, HashSet<String>>
 }
 
-impl <'a>Dictionary<'a> {
-    pub fn new(file_path: &str, config: &'a Config) -> Result<Self, Error> {
+impl Dictionary {
+    pub fn new(file_path: &str, min_word_len: usize, max_word_len: usize) -> Result<Self, Error> {
         let file = File::open(file_path).unwrap();
         let mut reader = BufReader::new(file);
-        let dictionary = Dictionary::map(&mut reader, &config);
+        let dictionary = Dictionary::map(&mut reader, min_word_len, max_word_len);
         Ok(Dictionary {
-            config,
             words: dictionary,
         })
     }
@@ -28,12 +23,12 @@ impl <'a>Dictionary<'a> {
         }
     }
 
-    fn map<T: BufRead>(reader: &mut T, config: &Config) -> HashMap<usize, HashSet<String>> {
+    fn map<T: BufRead>(reader: &mut T, min_word_len: usize, max_word_len: usize) -> HashMap<usize, HashSet<String>> {
         let mut dictionary: HashMap<usize, HashSet<String>> = HashMap::new();
 
         for line in reader.lines() {
             if let Ok(mut word) = line {
-                if Self::is_valid(config, &word) {
+                if Self::is_valid(min_word_len, max_word_len, &word) {
                     let word = Dictionary::clean(&mut word).to_string();
                     let word_len = word.len();
                     if dictionary.contains_key(&word_len) {
@@ -50,9 +45,9 @@ impl <'a>Dictionary<'a> {
         dictionary
     }
 
-    fn is_valid(config: &Config, word: &str) -> bool {
+    fn is_valid(min_word_len: usize, max_word_len: usize, word: &str) -> bool {
         let excluded_chars = "'";
-        if word.len() < config.min_word_len || word.len() > config.max_word_len { return false };
+        if word.len() < min_word_len || word.len() > max_word_len { return false };
         if word.chars().any(char::is_numeric) { return false }
         if excluded_chars.chars().map(|x| word.contains(x)).collect::<Vec<bool>>().contains(&true) { return false };
         true
@@ -70,14 +65,13 @@ mod tests {
 
     #[test]
     fn map_returns_expected_dictionary() {
-        let config = Config::new(4, 8, 14);
         let wordlist = "this\nis\njust\na\ntest\nlet\nsee\nhow\nit's\nworks\ntest!";
         let expected: HashMap<usize, HashSet<String>> = HashMap::from([
             (4, HashSet::from(["this".to_string(), "just".to_string(), "test".to_string()])),
             (5, HashSet::from(["works".to_string()])),
         ]);
 
-        assert_eq!(Dictionary::map(&mut wordlist.as_bytes(), &config), expected);
+        assert_eq!(Dictionary::map(&mut wordlist.as_bytes(), 4, 8), expected);
     }
 
     #[test_case("valid", true; "valid word")]
@@ -88,8 +82,7 @@ mod tests {
     #[test_case("seveeen", true; "max length")]
     #[test_case("cat", true; "min length")]
     fn is_valid_returns_correct_bool(word: &str, expected: bool) {
-        let config = Config::new(3, 7, 20);
-        assert_eq!(Dictionary::is_valid(&config, word), expected);
+        assert_eq!(Dictionary::is_valid(3, 7, word), expected);
     }
 
     #[test_case("word!", "word")]
