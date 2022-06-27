@@ -1,52 +1,53 @@
-use std::sync::mpsc::{Receiver, Sender};
-use itertools::Itertools;
+use std::sync::{mpsc::Receiver, Mutex, Arc}; use itertools::Itertools;
 use md5;
 
-use crate::{Command, State};
+use crate::{State, Password};
 
 pub struct PermutationsFinder {
-    passwords: Vec<String>,
+    passwords: Arc<Mutex<Vec<Password>>>,
     data_rx: Receiver<Vec<String>>,
-    comm_tx: Sender<Command>,
     state: State,
 }
 
+
 impl PermutationsFinder {
-    pub fn new(passwords: Vec<String>, data_rx: Receiver<Vec<String>>, comm_tx: Sender<Command>) -> PermutationsFinder {
-        PermutationsFinder {
+    pub fn new(passwords: Arc<Mutex<Vec<Password>>>, data_rx: Receiver<Vec<String>>) -> Self {
+        Self {
             passwords,
             data_rx,
-            comm_tx,
             state: State::Idle
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Vec<String> {
         self.state = State::Starting;
-        log::info!("PermutationsFinder running...");
-        let mut counter: usize = 0;
+        info!("PermutationsFinder running...");
+        let mut result = vec![];
         self.state = State::Running;
         loop {
             if let Ok(combination) = self.data_rx.try_recv() {
                 if let Some(phrase) = self.find(combination) {
-                    counter += 1;
-                    log::info!("Password found: {}", phrase);
+                    info!("Password found: {}", phrase);
+                    result.push(phrase);
                 }
             }
-            if counter >= self.passwords.len() { break }
+            if result.len() == self.passwords.lock().unwrap().len() { break }
         }
         self.state = State::Stopped;
-        let _ = self.comm_tx.send(Command::Stop);
-        log::info!("PermutationsFinder stopped!");
+        info!("PermutationsFinder stopped!");
+        result
     }
 
-    fn find(&self, combination: Vec<String>) -> Option<String> {
+    fn find(&mut self, combination: Vec<String>) -> Option<String> {
         for perm in combination.iter().permutations(combination.len()).unique() {
-            log::info!("{:?}", perm);
             let phrase = perm.iter().copied().join(" ");
             let digest = md5::compute(&phrase);
-            for password in &self.passwords {
-                if format!("{:x}", digest).eq(password) { return Some(phrase) }
+            for password in &mut *self.passwords.lock().unwrap() {
+                if password.found == false && format!("{:x}", digest).eq(&password.digest) {
+                    password.phrase = phrase.clone();
+                    password.found = true;
+                    return Some(phrase)
+                }
             }
         }
         None
@@ -55,7 +56,7 @@ impl PermutationsFinder {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc;
+    use std::sync::{mpsc, Arc};
     use md5;
 
     use super::*;
@@ -63,9 +64,8 @@ mod tests {
     #[test]
     fn test_find_create_expected_permutations() {
         let (_, in_rx) = mpsc::channel();
-        let (comm_tx, _) = mpsc::channel();
-        let passwords = vec![format!("{:x}", md5::compute(b"this is password")), format!("{:x}", md5::compute(b"not a password"))];
-        let permutations_finder = PermutationsFinder::new(passwords, in_rx, comm_tx);
+        let passwords = Arc::new(Mutex::new(vec![Password::new(format!("{:x}", md5::compute(b"this is password"))), Password::new(format!("{:x}", md5::compute(b"not a password")))]));
+        let mut permutations_finder = PermutationsFinder::new(passwords, in_rx);
 
         let res = permutations_finder.find(vec!["password".to_string(), "is".to_string(), "this".to_string()]).unwrap();
 
@@ -75,9 +75,8 @@ mod tests {
     #[test]
     fn run_stops_after_all_passwords_found() {
         let (in_tx, in_rx) = mpsc::channel();
-        let (comm_tx, _) = mpsc::channel();
-        let passwords = vec![format!("{:x}", md5::compute(b"this is password")), format!("{:x}", md5::compute(b"yet another password"))];
-        let mut permutations_finder = PermutationsFinder::new(passwords, in_rx, comm_tx);
+        let passwords = Arc::new(Mutex::new(vec![Password::new(format!("{:x}", md5::compute(b"this is password"))), Password::new(format!("{:x}", md5::compute(b"yet another password")))]));
+        let mut permutations_finder = PermutationsFinder::new(passwords, in_rx);
         let combinations = vec![
             vec!["some".to_string(), "just".to_string(), "words".to_string()],
             vec!["is".to_string(), "this".to_string(), "password".to_string()],
@@ -87,7 +86,7 @@ mod tests {
         for combination in combinations {
             let _ = in_tx.send(combination);
         }
-        permutations_finder.run();
+        let _ = permutations_finder.run();
 
         assert_eq!(permutations_finder.state, State::Stopped);
     }

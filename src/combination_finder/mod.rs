@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use std::{sync::mpsc::Sender, fmt::Error};
 
 use crate::State;
 
@@ -52,36 +52,44 @@ impl Iterator for DictionaryIterator {
 pub struct CombinationFinder {
     dictionary: Vec<Vec<String>>,
     tx: Sender<Vec<String>>,
+    comparator: Vec<char>,
     state: State
 }
 
 impl CombinationFinder {
-    pub fn new(dictionary: Vec<Vec<String>>, tx: Sender<Vec<String>>) -> Self {
+    pub fn new(dictionary: Vec<Vec<String>>, tx: Sender<Vec<String>>, comparator: Vec<char>) -> Self {
         CombinationFinder {
             dictionary,
             tx,
+            comparator,
             state: State::Idle
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), Error> {
         self.state = State::Starting;
+        self.comparator.sort();
         self.find_combinations(SimpleFinder{});
-        println!("CombinationFinder finished!");
+        info!("CombinationFinder finished!");
+        Ok(())
     }
 
-    fn is_valid(combination: &Vec<String>, comparator: &Vec<char>) -> bool {
+    fn is_valid(&self, combination: &Vec<String>) -> bool {
         let mut combination = combination.join("").chars().collect::<Vec<char>>();
         combination.sort();
-        comparator.eq(&combination)
+        self.comparator.eq(&combination)
     }
 
     fn find_combinations<T: Finder>(&mut self, finder: T) {
+        info!("Finder is running");
         let mut counter = DictionaryIterator::new(&self.dictionary);
         self.state = State::Running;
         while let Some(c) = counter.next() {
             let words = finder.find(c, &self.dictionary);
-            self.tx.send(words);
+            if self.is_valid(&words) {
+                // info!("{:?} is valid", words);
+                let _ = self.tx.send(words);
+            }
         }
         self.state = State::Stopped;
     }
@@ -157,45 +165,26 @@ mod tests {
     #[test_case(vec![String::from("this"), String::from("is"), String::from("test")], vec!['e', 'h', 'i', 'i', 's', 's', 's', 't', 't', 't'], true)]
     #[test_case(vec![String::from("this"), String::from("is"), String::from("test")], vec!['e', 'i', 'i', 'i', 's', 's', 's', 't', 't', 't'], false)]
     fn validate_returns_expected(combination: Vec<String>, comparator: Vec<char>, expected: bool) {
-        assert_eq!(CombinationFinder::is_valid(&combination, &comparator), expected);
+        let dictionary = vec![];
+        let (tx_res, _) = mpsc::channel();
+        let combination_finder = CombinationFinder::new(dictionary, tx_res, comparator);
+        assert_eq!(combination_finder.is_valid(&combination), expected);
     }
 
     #[test]
     fn run_return_expected_combinations() {
         let dictionary = vec![
             vec![String::from("who"), String::from("bet"), String::from("set")],
-            vec![String::from("test"), String::from("best")],
-            vec![String::from("dizzy"), String::from("junky"), String::from("zippy"), String::from("quack")],
+            vec![String::from("test"), String::from("best"), String::from("pies")],
+            vec![String::from("dizzy"), String::from("junky"), String::from("zippy"), String::from("tyztp")],
         ];
         let (tx_res, rx_res) = mpsc::channel();
-        let mut combination_finder = CombinationFinder::new(dictionary, tx_res);
+        let mut combination_finder = CombinationFinder::new(dictionary, tx_res, vec!['e', 'h', 'i', 'o', 'p', 'p', 's', 't', 't', 'w', 'y', 'z']);
         assert_eq!(combination_finder.state, State::Idle);
-        combination_finder.run();
+        let _ = combination_finder.run();
 
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("test"), String::from("dizzy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("test"), String::from("junky")]);
         assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("test"), String::from("zippy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("test"), String::from("quack")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("best"), String::from("dizzy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("best"), String::from("junky")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("best"), String::from("zippy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("best"), String::from("quack")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("bet"), String::from("test"), String::from("dizzy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("bet"), String::from("test"), String::from("junky")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("bet"), String::from("test"), String::from("zippy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("bet"), String::from("test"), String::from("quack")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("bet"), String::from("best"), String::from("dizzy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("bet"), String::from("best"), String::from("junky")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("bet"), String::from("best"), String::from("zippy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("bet"), String::from("best"), String::from("quack")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("test"), String::from("dizzy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("test"), String::from("junky")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("test"), String::from("zippy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("test"), String::from("quack")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("best"), String::from("dizzy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("best"), String::from("junky")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("best"), String::from("zippy")]);
-        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("set"), String::from("best"), String::from("quack")]);
+        assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("pies"), String::from("tyztp")]);
         assert_eq!(combination_finder.state, State::Stopped);
     }
 }
