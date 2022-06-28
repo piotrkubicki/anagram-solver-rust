@@ -1,12 +1,11 @@
 use std::sync::{mpsc::Receiver, Mutex, Arc}; use itertools::Itertools;
 use md5;
 
-use crate::{State, Password};
+use crate::Password;
 
 pub struct PermutationsFinder {
     passwords: Arc<Mutex<Vec<Password>>>,
     data_rx: Receiver<Vec<String>>,
-    state: State,
 }
 
 
@@ -15,15 +14,12 @@ impl PermutationsFinder {
         Self {
             passwords,
             data_rx,
-            state: State::Idle
         }
     }
 
     pub fn run(&mut self) -> Vec<String> {
-        self.state = State::Starting;
         info!("PermutationsFinder running...");
         let mut result = vec![];
-        self.state = State::Running;
         loop {
             if let Ok(combination) = self.data_rx.try_recv() {
                 if let Some(phrase) = self.find(combination) {
@@ -33,7 +29,6 @@ impl PermutationsFinder {
             }
             if result.len() == self.passwords.lock().unwrap().len() { break }
         }
-        self.state = State::Stopped;
         info!("PermutationsFinder stopped!");
         result
     }
@@ -57,6 +52,7 @@ impl PermutationsFinder {
 #[cfg(test)]
 mod tests {
     use std::sync::{mpsc, Arc};
+    use test::Bencher;
     use md5;
 
     use super::*;
@@ -87,7 +83,19 @@ mod tests {
             let _ = in_tx.send(combination);
         }
         let _ = permutations_finder.run();
+    }
 
-        assert_eq!(permutations_finder.state, State::Stopped);
+    #[bench]
+    fn bench_find(b: &mut Bencher) {
+        let (_, in_rx) = mpsc::channel();
+        let passwords = Arc::new(Mutex::new(vec![Password::new(format!("{:x}", md5::compute(b"this is password"))), Password::new(format!("{:x}", md5::compute(b"not a password")))]));
+        let mut permutations_finder = PermutationsFinder::new(passwords, in_rx);
+
+        b.iter(|| {
+            (1..1000).for_each(|_| {
+                let combination = vec!["password".to_string(), "is".to_string(), "this".to_string()];
+                permutations_finder.find(combination);
+            });
+        });
     }
 }

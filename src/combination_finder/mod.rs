@@ -1,6 +1,6 @@
 use std::{sync::mpsc::Sender, fmt::Error};
 
-use crate::State;
+use itertools::Itertools;
 
 struct DictionaryIterator {
     max_values: Vec<isize>,
@@ -53,24 +53,25 @@ pub struct CombinationFinder {
     dictionary: Vec<Vec<String>>,
     tx: Sender<Vec<String>>,
     comparator: Vec<char>,
-    state: State
+    combination_rules: Vec<usize>,
 }
 
 impl CombinationFinder {
     pub fn new(dictionary: Vec<Vec<String>>, tx: Sender<Vec<String>>, comparator: Vec<char>) -> Self {
+        let combination_rules: Vec<usize> = dictionary.iter().map(|x| { x.len() }).collect_vec();
         CombinationFinder {
             dictionary,
             tx,
             comparator,
-            state: State::Idle
+            combination_rules,
         }
     }
 
     pub fn run(&mut self) -> Result<(), Error> {
-        self.state = State::Starting;
+        info!("Finder is running, combination rules: {:?}", self.combination_rules);
         self.comparator.sort();
         self.find_combinations(SimpleFinder{});
-        info!("CombinationFinder finished!");
+        info!("CombinationFinder for combination rules {:?} finished!", self.combination_rules);
         Ok(())
     }
 
@@ -81,17 +82,13 @@ impl CombinationFinder {
     }
 
     fn find_combinations<T: Finder>(&mut self, finder: T) {
-        info!("Finder is running");
         let mut counter = DictionaryIterator::new(&self.dictionary);
-        self.state = State::Running;
         while let Some(c) = counter.next() {
             let words = finder.find(c, &self.dictionary);
             if self.is_valid(&words) {
-                // info!("{:?} is valid", words);
                 let _ = self.tx.send(words);
             }
         }
-        self.state = State::Stopped;
     }
 }
 
@@ -118,8 +115,6 @@ impl Finder for SimpleFinder {
 #[cfg(test)]
 mod tests {
     use std::sync::mpsc;
-
-    use crate::State;
 
     use super::*;
     use test_case::test_case;
@@ -180,11 +175,9 @@ mod tests {
         ];
         let (tx_res, rx_res) = mpsc::channel();
         let mut combination_finder = CombinationFinder::new(dictionary, tx_res, vec!['e', 'h', 'i', 'o', 'p', 'p', 's', 't', 't', 'w', 'y', 'z']);
-        assert_eq!(combination_finder.state, State::Idle);
         let _ = combination_finder.run();
 
         assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("test"), String::from("zippy")]);
         assert_eq!(rx_res.try_recv().unwrap(), vec![String::from("who"), String::from("pies"), String::from("tyztp")]);
-        assert_eq!(combination_finder.state, State::Stopped);
     }
 }
